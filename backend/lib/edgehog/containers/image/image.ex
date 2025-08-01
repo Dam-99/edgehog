@@ -33,6 +33,19 @@ defmodule Edgehog.Containers.Image do
 
   actions do
     defaults [:read, :destroy, create: [:reference, :image_credentials_id]]
+
+    create :create_with_nested do
+      accept [:reference]
+
+      argument :credentials, :map
+
+      change manage_relationship(:credentials,
+               on_no_match: :create,
+               on_lookup: :relate,
+               on_match: :ignore,
+               use_identities: [:label]
+             )
+    end
   end
 
   attributes do

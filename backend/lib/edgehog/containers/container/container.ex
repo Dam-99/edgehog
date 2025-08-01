@@ -63,7 +63,7 @@ defmodule Edgehog.Containers.Container do
       argument :image, :map
 
       change manage_relationship(:image,
-               on_no_match: :create,
+               on_no_match: {:create, :create_with_nested},
                on_lookup: :relate,
                on_match: :ignore,
                use_identities: [:reference]
