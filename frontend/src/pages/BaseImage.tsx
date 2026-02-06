@@ -18,7 +18,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { ReactNode, Suspense, useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { FormattedMessage } from "react-intl";
 import { ErrorBoundary } from "react-error-boundary";
@@ -36,6 +36,7 @@ import type {
 } from "@/api/__generated__/BaseImage_getBaseImage_Query.graphql";
 import type { BaseImage_updateBaseImage_Mutation } from "@/api/__generated__/BaseImage_updateBaseImage_Mutation.graphql";
 import type { BaseImage_deleteBaseImage_Mutation } from "@/api/__generated__/BaseImage_deleteBaseImage_Mutation.graphql";
+import type { BaseImage_getRelatedUpdateCampaigns_Query } from "@/api/__generated__/BaseImage_getRelatedUpdateCampaigns_Query.graphql";
 import Alert from "@/components/Alert";
 import Center from "@/components/Center";
 import DeleteModal from "@/components/DeleteModal";
@@ -88,12 +89,36 @@ const DELETE_BASE_IMAGE_MUTATION = graphql`
   }
 `;
 
+const RELATED_UPDATE_CAMPAIGNS_QUERY = graphql`
+  query BaseImage_getRelatedUpdateCampaigns_Query(
+    $baseImageId: ID!
+  ) {
+    updateCampaigns(baseImageId: $baseImageId) {
+      edges {
+        node {
+          name
+          status
+          campaignMechanism {
+            __typename
+            ... on FirmwareUpgrade {
+              baseImage {
+                id
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
 type BaseImageContentProps = {
   baseImage: NonNullable<BaseImage_getBaseImage_Query$data["baseImage"]>;
   queryRef: BaseImage_getBaseImage_Query$data;
+  getRelatedUpdateCampaignsQuery: PreloadedQuery<BaseImage_getRelatedUpdateCampaigns_Query>;
 };
 
-const BaseImageContent = ({ baseImage, queryRef }: BaseImageContentProps) => {
+const BaseImageContent = ({ baseImage, queryRef, getRelatedUpdateCampaignsQuery }: BaseImageContentProps) => {
   const baseImageId = baseImage.id;
   const baseImageCollectionId = baseImage.baseImageCollection.id;
   const navigate = useNavigate();
@@ -111,7 +136,7 @@ const BaseImageContent = ({ baseImage, queryRef }: BaseImageContentProps) => {
   const handleDeleteBaseImage = useCallback(() => {
     deleteBaseImage({
       variables: { baseImageId },
-      onCompleted(data, errors) {
+      onCompleted(_data, errors) {
         if (!errors || errors.length === 0 || errors[0].code === "not_found") {
           return navigate({
             route: Route.baseImageCollectionsEdit,
@@ -151,6 +176,10 @@ const BaseImageContent = ({ baseImage, queryRef }: BaseImageContentProps) => {
     });
   }, [deleteBaseImage, baseImageId, baseImageCollectionId, navigate]);
 
+  const relatedUpdateCampaignsData = usePreloadedQuery(RELATED_UPDATE_CAMPAIGNS_QUERY, getRelatedUpdateCampaignsQuery);
+  const runningUpdateCampaigns = relatedUpdateCampaignsData?.updateCampaigns?.edges?.map(({node}) => node).filter((campaign) => campaign.status !== "FINISHED")
+  console.log(relatedUpdateCampaignsData)
+
   const [updateBaseImage, isUpdatingBaseImage] =
     useMutation<BaseImage_updateBaseImage_Mutation>(UPDATE_BASE_IMAGE_MUTATION);
 
@@ -158,7 +187,7 @@ const BaseImageContent = ({ baseImage, queryRef }: BaseImageContentProps) => {
     (baseImageChanges: BaseImageChanges) => {
       updateBaseImage({
         variables: { baseImageId, input: baseImageChanges },
-        onCompleted(data, errors) {
+        onCompleted(_data, errors) {
           if (errors) {
             const errorFeedback = errors
               .map(({ fields, message }) =>
@@ -233,6 +262,22 @@ const BaseImageContent = ({ baseImage, queryRef }: BaseImageContentProps) => {
                 }}
               />
             </p>
+            { runningUpdateCampaigns && runningUpdateCampaigns.length > 0 &&
+            <p>
+              {(() => { console.log("eeee"); return <></> as ReactNode })()}
+              <FormattedMessage
+                id="pages.BaseImage.deleteModal.existingUpdateCampaigns"
+                defaultMessage="<bold>Caution:</bold> Please note that there exist Update Campaigns using this Base Image.
+                The following Update Campaigns are using this Base Image:
+                <list>{updateCampaigns}</list>"
+                values={{
+                  bold: (text: React.ReactNode) => <strong>{text}</strong>,
+                  updateCampaigns: runningUpdateCampaigns.map((campaign) => campaign.name),
+                  list: (list: React.ReactNode[]) => <ul>{list.map(name => <li>{name}</li>)}</ul>
+                }}
+              />
+            </p>
+            }
           </DeleteModal>
         )}
       </Page.Main>
@@ -242,9 +287,10 @@ const BaseImageContent = ({ baseImage, queryRef }: BaseImageContentProps) => {
 
 type BaseImageWrapperProps = {
   getBaseImageQuery: PreloadedQuery<BaseImage_getBaseImage_Query>;
+  getRelatedUpdateCampaignsQuery: PreloadedQuery<BaseImage_getRelatedUpdateCampaigns_Query>;
 };
 
-const BaseImageWrapper = ({ getBaseImageQuery }: BaseImageWrapperProps) => {
+const BaseImageWrapper = ({ getBaseImageQuery, getRelatedUpdateCampaignsQuery }: BaseImageWrapperProps) => {
   const { baseImageCollectionId = "" } = useParams();
 
   const queryData = usePreloadedQuery(GET_BASE_IMAGE_QUERY, getBaseImageQuery);
@@ -273,7 +319,7 @@ const BaseImageWrapper = ({ getBaseImageQuery }: BaseImageWrapperProps) => {
   }
 
   return (
-    <BaseImageContent baseImage={queryData.baseImage} queryRef={queryData} />
+    <BaseImageContent baseImage={queryData.baseImage} queryRef={queryData} getRelatedUpdateCampaignsQuery={getRelatedUpdateCampaignsQuery} />
   );
 };
 
@@ -288,6 +334,14 @@ const BaseImagePage = () => {
   }, [getBaseImage, baseImageId]);
 
   useEffect(fetchBaseImage, [fetchBaseImage]);
+
+  const [getRelatedUpdateCampaignsQuery, getRelatedUpdateCampaigns] = useQueryLoader<BaseImage_getRelatedUpdateCampaigns_Query>(RELATED_UPDATE_CAMPAIGNS_QUERY)
+
+  const fetchRelatedUpdateCampaigns = useCallback(() => {
+    getRelatedUpdateCampaigns({ baseImageId }, { fetchPolicy: "network-only" })
+    }, [getRelatedUpdateCampaigns, baseImageId])
+
+  useEffect(fetchRelatedUpdateCampaigns, [fetchRelatedUpdateCampaigns])
 
   return (
     <Suspense
@@ -305,8 +359,8 @@ const BaseImagePage = () => {
         )}
         onReset={fetchBaseImage}
       >
-        {getBaseImageQuery && (
-          <BaseImageWrapper getBaseImageQuery={getBaseImageQuery} />
+        {getBaseImageQuery && getRelatedUpdateCampaignsQuery && (
+          <BaseImageWrapper getBaseImageQuery={getBaseImageQuery} getRelatedUpdateCampaignsQuery={getRelatedUpdateCampaignsQuery} />
         )}
       </ErrorBoundary>
     </Suspense>

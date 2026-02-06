@@ -99,10 +99,10 @@ type FirmwareUpgrade {
   """
   requestTimeoutSeconds: Int!
 
-  baseImageId: Int!
+  baseImageId: Int
 
   "The base image distributed by the update campaign."
-  baseImage: BaseImage!
+  baseImage: BaseImage
 }
 
 input CampaignCampaignMechanismDeploymentUpgradeInput {
@@ -5944,6 +5944,9 @@ type RootQueryType {
     last: Int
 
     types: [String!]
+
+    "Returns all the Update Campaigns that use the given Base Image."
+    baseImageId: ID
   ): CampaignConnection
 
   "Returns all deployment campaigns."
