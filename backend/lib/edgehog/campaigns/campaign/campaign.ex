@@ -50,9 +50,26 @@ defmodule Edgehog.Campaigns.Campaign do
 
     read :update_campaign do
       argument :types, {:array, :atom}
+      argument :base_image_id, :id do
+        description """
+        Returns all the Update Campaigns that use the given Base Image.
+        """
+      end
       multitenancy :allow_global
       pagination keyset?: true
       filter expr(campaign_mechanism[:type] in [:firmware_upgrade])
+      # validate Validations.RelateToBaseImage
+      prepare fn query, _context ->
+        dbg(query)
+        res = case Ash.Query.get_argument(query, :base_image_id) do
+          base_image_id ->
+            Ash.Query.filter(query, expr(campaign_mechanism[:base_image_id] == ^base_image_id))
+            |> dbg()
+          nil -> query
+        end
+        dbg(Ash.read(res))
+        res
+      end
     end
 
     read :deployment_campaign do

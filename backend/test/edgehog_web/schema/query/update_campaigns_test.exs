@@ -197,9 +197,15 @@ defmodule EdgehogWeb.Schema.Query.UpdateCampaignsTest do
     """
 
     tenant = Keyword.fetch!(opts, :tenant)
+
+    base_image_id = Keyword.get(opts, :base_image_id)
+    variables = if is_nil(base_image_id), do: nil, else: %{
+      input: %{base_image_id: base_image_id}
+    }
     document = Keyword.get(opts, :document, default_document)
 
-    Absinthe.run!(document, EdgehogWeb.Schema, context: %{tenant: tenant})
+    Absinthe.run!(document, EdgehogWeb.Schema, variables: variables, context: %{tenant: tenant})
+      |> dbg()
   end
 
   defp extract_result!(result) do

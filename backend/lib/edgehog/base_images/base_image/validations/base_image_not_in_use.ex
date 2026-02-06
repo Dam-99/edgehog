@@ -42,6 +42,7 @@ defmodule Edgehog.BaseImages.BaseImage.Validations.BaseImageNotInUse do
           ^resource.id
         )
       )
+      |> Ash.Query.filter(status != :finished)
       |> Ash.Query.limit(1)
       |> Ash.read!()
 
@@ -50,7 +51,7 @@ defmodule Edgehog.BaseImages.BaseImage.Validations.BaseImageNotInUse do
         :ok
 
       [_] ->
-        {:error, field: :id, message: "Base image is currently in use by at least one campaign"}
+        {:error, field: :id, message: "Base image is currently in use by at least one running campaign"}
     end
   end
 end
